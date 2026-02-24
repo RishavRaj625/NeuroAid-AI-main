@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from routers import analyze
+from routers import analyze, auth, messages, content
 from utils.logger import log_info
 
 app = FastAPI(
@@ -13,14 +13,17 @@ app = FastAPI(
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(analyze.router, prefix="/api")
+app.include_router(analyze.router,  prefix="/api")
+app.include_router(auth.router,     prefix="/api")
+app.include_router(messages.router, prefix="/api")
+app.include_router(content.router,  prefix="/api")
 
 # ── Global exception handler ──────────────────────────────────────────────────
 @app.exception_handler(Exception)

@@ -38,72 +38,72 @@ from models.schemas import (
 
 # Alzheimer's: dominated by memory decline + word-finding difficulties
 ALZ_WEIGHTS = np.array([
-    -0.010,  # wpm (slower speech ↑ risk, mild)
-     0.008,  # speed_deviation
-     0.006,  # speech_variability
-     0.015,  # pause_ratio (high pauses ↑ risk — word finding)
-     0.005,  # speech_start_delay
-    -0.030,  # immediate_recall_accuracy (lower = higher risk — PRIMARY)
-    -0.035,  # delayed_recall_accuracy (strongest Alz marker — PRIMARY)
-     0.020,  # intrusion_count (strong Alz marker)
-     0.015,  # recall_latency
-    -0.020,  # order_match_ratio
-     0.003,  # mean_rt (minor)
-     0.002,  # std_rt
-     0.001,  # min_rt
-     0.003,  # reaction_drift
-     0.005,  # miss_count
-     0.005,  # stroop_error_rate
-     0.002,  # stroop_rt
-     0.002,  # tap_interval_std
+    -0.100,  # wpm (slower speech ↑ risk, mild)
+     0.080,  # speed_deviation
+     0.060,  # speech_variability
+     0.150,  # pause_ratio (high pauses ↑ risk — word finding)
+     0.050,  # speech_start_delay
+    -0.300,  # immediate_recall_accuracy (lower = higher risk — PRIMARY)
+    -0.350,  # delayed_recall_accuracy (strongest Alz marker — PRIMARY)
+     0.200,  # intrusion_count (strong Alz marker)
+     0.150,  # recall_latency
+    -0.200,  # order_match_ratio
+     0.030,  # mean_rt (minor)
+     0.020,  # std_rt
+     0.010,  # min_rt
+     0.030,  # reaction_drift
+     0.050,  # miss_count
+     0.050,  # stroop_error_rate
+     0.020,  # stroop_rt
+     0.020,  # tap_interval_std
 ])
-ALZ_BIAS = 0.35
+ALZ_BIAS = 0.20
 
 # Dementia (general): attention + processing speed + broad cognitive decline
 DEM_WEIGHTS = np.array([
-    -0.008,  # wpm
-     0.005,  # speed_deviation
-     0.005,  # speech_variability
-     0.008,  # pause_ratio
-     0.006,  # speech_start_delay
-    -0.020,  # immediate_recall_accuracy
-    -0.018,  # delayed_recall_accuracy
-     0.012,  # intrusion_count
-     0.010,  # recall_latency
-    -0.012,  # order_match_ratio
-     0.025,  # mean_rt (STRONG — processing speed)
-     0.020,  # std_rt (STRONG — attention instability)
-     0.010,  # min_rt
-     0.018,  # reaction_drift (fatigue = cognitive load issue)
-     0.025,  # miss_count (PRIMARY — sustained attention)
-     0.030,  # stroop_error_rate (PRIMARY — executive function)
-     0.015,  # stroop_rt
-     0.008,  # tap_interval_std
+    -0.080,  # wpm
+     0.050,  # speed_deviation
+     0.050,  # speech_variability
+     0.080,  # pause_ratio
+     0.060,  # speech_start_delay
+    -0.200,  # immediate_recall_accuracy
+    -0.180,  # delayed_recall_accuracy
+     0.120,  # intrusion_count
+     0.100,  # recall_latency
+    -0.120,  # order_match_ratio
+     0.250,  # mean_rt (STRONG — processing speed)
+     0.200,  # std_rt (STRONG — attention instability)
+     0.100,  # min_rt
+     0.180,  # reaction_drift
+     0.250,  # miss_count (PRIMARY — sustained attention)
+     0.300,  # stroop_error_rate (PRIMARY — executive function)
+     0.150,  # stroop_rt
+     0.080,  # tap_interval_std
 ])
-DEM_BIAS = 0.25
+DEM_BIAS = -0.30
 
 # Parkinson's: motor timing + initiation + reaction consistency
 PARK_WEIGHTS = np.array([
-    -0.015,  # wpm (hypophonia, slow speech)
-     0.012,  # speed_deviation
-     0.018,  # speech_variability (monotone/dysrhythmic)
-     0.010,  # pause_ratio
-     0.020,  # speech_start_delay (initiation delay — PRIMARY)
-    -0.005,  # immediate_recall_accuracy (mild)
-    -0.005,  # delayed_recall_accuracy
-     0.005,  # intrusion_count
-     0.008,  # recall_latency
-    -0.005,  # order_match_ratio
-     0.030,  # mean_rt (PRIMARY — bradykinesia)
-     0.025,  # std_rt (PRIMARY — motor inconsistency)
-     0.020,  # min_rt (slow even at best)
-     0.015,  # reaction_drift
-     0.020,  # miss_count
-     0.008,  # stroop_error_rate
-     0.010,  # stroop_rt
-     0.040,  # tap_interval_std (PRIMARY — rhythmic motor control)
+    -0.150,  # wpm (hypophonia, slow speech)
+     0.120,  # speed_deviation
+     0.180,  # speech_variability (monotone/dysrhythmic)
+     0.100,  # pause_ratio
+     0.200,  # speech_start_delay (initiation delay — PRIMARY)
+    -0.050,  # immediate_recall_accuracy (mild)
+    -0.050,  # delayed_recall_accuracy
+     0.050,  # intrusion_count
+     0.080,  # recall_latency
+    -0.050,  # order_match_ratio
+     0.300,  # mean_rt (PRIMARY — bradykinesia)
+     0.250,  # std_rt (PRIMARY — motor inconsistency)
+     0.200,  # min_rt (slow even at best)
+     0.150,  # reaction_drift
+     0.200,  # miss_count
+     0.080,  # stroop_error_rate
+     0.100,  # stroop_rt
+     0.400,  # tap_interval_std (PRIMARY — rhythmic motor control)
 ])
-PARK_BIAS = 0.20
+PARK_BIAS = -0.50
 
 
 def _sigmoid(x: float) -> float:
@@ -211,10 +211,12 @@ def extract_reaction_features(reaction_times: list, reaction: Optional[ReactionD
                  reaction_drift=round(drift, 2), miss_count=float(miss_count),
                  initiation_delay=round(init_delay, 2))
 
-    speed_score = max(0, 100 - ((mean_rt - 200) / 400) * 100)
-    var_pen     = min(std_rt / 5, 20)
-    drift_pen   = min(max(drift / 10, 0), 20)
-    miss_pen    = min(miss_count * 10, 30)
+    # Score based on realistic RT range: 150ms (fast) to 1200ms (slow)
+    # 150ms → ~100,  400ms → ~75,  700ms → ~50,  1000ms → ~20,  1200ms → ~0
+    speed_score = float(np.clip(100 - ((mean_rt - 150) / 1050) * 100, 0, 100))
+    var_pen     = float(np.clip(std_rt / 8, 0, 20))           # variability penalty (max -20)
+    drift_pen   = float(np.clip(max(drift, 0) / 15, 0, 15))   # fatigue penalty (max -15)
+    miss_pen    = float(np.clip(miss_count * 8, 0, 25))        # miss penalty (max -25)
     score = float(np.clip(speed_score - var_pen - drift_pen - miss_pen + random.uniform(-2, 2), 0, 100))
     return round(score, 2), feats
 

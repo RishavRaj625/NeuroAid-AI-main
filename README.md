@@ -20,7 +20,7 @@ Traditional tools like the [Mini-Mental State Examination](https://en.wikipedia.
 
 ---
 
-## 🚀 What NeuroAid Does
+## 🚀 What NeuroAid Does 
 
 NeuroAid analyzes three key cognitive indicators:
 
@@ -190,6 +190,15 @@ Example Response:
   "risk_level": "Moderate"
 }
 ```
+
+# Backend
+cd backend
+uvicorn main:app --reload --port 8000
+
+# Frontend (new terminal)
+cd frontend
+npm run dev
+
 ---
 ```
 📁 GitHub Folder Structure

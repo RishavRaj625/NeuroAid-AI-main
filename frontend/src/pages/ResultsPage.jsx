@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { T } from "../utils/theme";
 import { DarkCard, Btn, MiniChart } from "../components/RiskDashboard";
 import { useAssessment } from "../context/AssessmentContext";
+import { getMyResults } from "../services/api";
 
 // ── Disease card styling ───────────────────────────────────────────────────────
 const DISEASE_META = {
@@ -88,20 +90,51 @@ function DiseaseCard({ diseaseKey, prob, level }) {
 }
 
 export default function ResultsPage({ setPage }) {
-  const { apiResult, reset } = useAssessment();
+  const { apiResult, reset, setApiResult } = useAssessment();
+  const [loading, setLoading] = useState(false);
 
-  const r = apiResult || {
-    speech_score: 74, memory_score: 82, reaction_score: 68,
-    executive_score: 77, motor_score: 80,
-    alzheimers_risk: 0.28, dementia_risk: 0.41, parkinsons_risk: 0.18,
-    risk_levels: { alzheimers: "Low", dementia: "Moderate", parkinsons: "Low" },
-    feature_vector: null, attention_variability_index: null,
-    disclaimer: "⚠️ Screening tool only — not a medical diagnosis.",
-  };
+  // If no in-memory result (e.g. page refresh), load latest from backend
+  useEffect(() => {
+    if (!apiResult) {
+      setLoading(true);
+      getMyResults()
+        .then(results => {
+          if (results && results.length > 0) {
+            setApiResult(results[results.length - 1]);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"60vh", color:"#555", fontSize:14 }}>
+        Loading your latest results…
+      </div>
+    );
+  }
+
+  if (!apiResult) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"60vh", textAlign:"center", gap:20 }}>
+        <div style={{ fontSize:56 }}>📋</div>
+        <h2 style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:900, fontSize:28, color:"#fff", letterSpacing:"-1px" }}>No results yet</h2>
+        <p style={{ color:"#555", fontSize:14, maxWidth:380, lineHeight:1.7 }}>
+          Complete all 5 cognitive tests in the Assessment Hub to see your personalized disease risk scores.
+        </p>
+        <button onClick={() => setPage("assessments")} style={{ padding:"13px 28px", borderRadius:12, background:"linear-gradient(135deg,#C8F135,#9ABF28)", color:"#080808", fontWeight:900, fontSize:14, border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+          Go to Assessment Hub →
+        </button>
+      </div>
+    );
+  }
+  const r = apiResult;
 
   const fv      = r.feature_vector;
   const today   = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const isLive  = !!apiResult;
+  const isLive  = true;
 
   const domainScores = [
     { label: "Speech",    score: Math.round(r.speech_score),    icon: "🎙️", color: T.red    },
@@ -117,7 +150,7 @@ export default function ResultsPage({ setPage }) {
     <div>
       <div style={{ marginBottom: 36 }}>
         <h1 style={{ fontFamily: "'Instrument Serif',serif", fontSize: 36, color: T.cream, letterSpacing: -1, marginBottom: 6 }}>Assessment Results</h1>
-        <p style={{ color: T.creamFaint, fontSize: 14 }}>{today} · {isLive ? "Live 18-feature analysis" : "Demo data — complete tests for real results"}</p>
+        <p style={{ color: T.creamFaint, fontSize: 14 }}>{today} · "Live 18-feature analysis"</p>
       </div>
 
       {/* Overall health bar */}

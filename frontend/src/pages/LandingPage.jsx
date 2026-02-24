@@ -1,247 +1,689 @@
-import { T } from "../utils/theme";
-import { Stars, DarkCard, Btn, MiniChart } from "../components/RiskDashboard";
+import { useState, useEffect, useRef } from "react";
 
-export default function LandingPage({ setView }) {
-  const FloatCard = ({ children, style }) => (
-    <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 16, padding: "10px 14px", boxShadow: "0 20px 60px rgba(0,0,0,0.5)", backdropFilter: "blur(10px)", ...style }}>{children}</div>
+const C = {
+  bg:      "#080808",
+  lime:    "#C8F135",
+  limeDim: "#9ABF28",
+  white:   "#FFFFFF",
+  offWhite:"#E8E8E8",
+  dim:     "#555555",
+};
+
+/* ── Fixed grid ──────────────────────────────────────────── */
+const GridBg = () => (
+  <div style={{
+    position:"fixed", inset:0, zIndex:0, pointerEvents:"none",
+    backgroundImage:`linear-gradient(rgba(255,255,255,0.038) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.038) 1px,transparent 1px)`,
+    backgroundSize:"80px 80px",
+  }} />
+);
+
+/* ── Nav dropdown data ──────────────────────────────────── */
+const NAV_DATA = {
+  Guides: [
+    { title:"Getting Started", items:[
+      { icon:"🚀", label:"Quick Start Guide", desc:"Set up your first assessment in 5 minutes" },
+      { icon:"📖", label:"How Tests Work",    desc:"The science behind each screening" },
+      { icon:"🎯", label:"Reading Results",   desc:"Interpret your cognitive score dashboard" },
+    ]},
+    { title:"Advanced", items:[
+      { icon:"🩺", label:"Doctor Portal",     desc:"How clinicians review patient data" },
+      { icon:"📊", label:"Progress Tracking", desc:"Monitor improvement over time" },
+      { icon:"🔗", label:"API Docs",          desc:"Integrate NeuroAid into your platform" },
+    ]},
+  ],
+  Support: [
+    { title:"Help Center", items:[
+      { icon:"💬", label:"Live Chat",     desc:"Talk to our team in real time" },
+      { icon:"📧", label:"Email Support", desc:"Response within 24 hours" },
+      { icon:"❓", label:"FAQ",           desc:"Most common questions answered" },
+    ]},
+    { title:"Resources", items:[
+      { icon:"📋", label:"Release Notes",     desc:"What's new in each update" },
+      { icon:"🐛", label:"Report a Bug",      desc:"Help us improve the platform" },
+      { icon:"🏥", label:"Clinical Partners", desc:"For hospitals and clinics" },
+    ]},
+  ],
+  About: [
+    { title:"Company", items:[
+      { icon:"🧠", label:"Our Mission",  desc:"Why we built NeuroAid" },
+      { icon:"👥", label:"The Team",     desc:"Neuroscientists and engineers" },
+      { icon:"📰", label:"Press & Media",desc:"Coverage and announcements" },
+    ]},
+    { title:"Science", items:[
+      { icon:"🔬", label:"Research Papers", desc:"Peer-reviewed studies behind our tests" },
+      { icon:"🏆", label:"Accuracy Data",   desc:"98% clinical validation results" },
+      { icon:"🌐", label:"Global Reach",    desc:"How we serve patients worldwide" },
+    ]},
+  ],
+};
+
+/* ── Dropdown panel ─────────────────────────────────────── */
+function Dropdown({ name }) {
+  const sections = NAV_DATA[name];
+  return (
+    <div onClick={e=>e.stopPropagation()} style={{
+      position:"absolute", top:"calc(100% + 14px)", left:"50%",
+      transform:"translateX(-50%)",
+      background:"rgba(8,10,8,0.98)",
+      backdropFilter:"blur(32px)", WebkitBackdropFilter:"blur(32px)",
+      border:"1px solid rgba(255,255,255,0.10)",
+      borderRadius:20,
+      boxShadow:"0 32px 80px rgba(0,0,0,0.80),inset 0 1px 0 rgba(255,255,255,0.07)",
+      padding:"24px 28px",
+      display:"flex", gap:32,
+      minWidth:520, zIndex:9999,
+      animation:"dd-in 0.22s cubic-bezier(0.34,1.56,0.64,1) both",
+    }}>
+      <div style={{ position:"absolute",top:0,left:"10%",right:"10%",height:1,background:`linear-gradient(90deg,transparent,${C.lime}44,transparent)` }} />
+      {sections.map(sec=>(
+        <div key={sec.title} style={{ flex:1 }}>
+          <div style={{ fontSize:10,fontWeight:700,color:C.lime,letterSpacing:2,textTransform:"uppercase",marginBottom:14 }}>{sec.title}</div>
+          {sec.items.map(it=>(
+            <div key={it.label} style={{ display:"flex",alignItems:"flex-start",gap:12,padding:"9px 12px",borderRadius:12,marginBottom:3,cursor:"pointer",transition:"background 0.15s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+            >
+              <span style={{ fontSize:19,flexShrink:0,marginTop:1 }}>{it.icon}</span>
+              <div>
+                <div style={{ fontWeight:700,fontSize:13,color:C.white,marginBottom:2 }}>{it.label}</div>
+                <div style={{ fontSize:11,color:C.dim,lineHeight:1.5 }}>{it.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
+}
+
+/* ════════════════════════════════════════════════════════
+   NAVBAR — rendered as a React Portal so it's ALWAYS
+   a direct child of <body>, completely outside any
+   transform/perspective ancestor. This is the ONLY
+   reliable fix for position:fixed breaking.
+════════════════════════════════════════════════════════ */
+import { createPortal } from "react-dom";
+
+function NavPortal({ setView, open, setOpen }) {
+  return createPortal(
+    <nav style={{
+      position:"fixed", top:0, left:0, right:0, zIndex:9000,
+      display:"flex", alignItems:"center", justifyContent:"space-between",
+      padding:"0 40px", height:60,
+      background:"rgba(8,8,8,0.92)",
+      backdropFilter:"blur(28px)", WebkitBackdropFilter:"blur(28px)",
+      borderBottom:"1px solid rgba(255,255,255,0.07)",
+      fontFamily:"'DM Sans',sans-serif",
+    }}>
+      {/* Logo */}
+      <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+        <div style={{ width:34,height:34,borderRadius:10,background:`linear-gradient(135deg,${C.lime},${C.limeDim})`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:15,color:"#080808",boxShadow:`0 0 18px ${C.lime}44` }}>N</div>
+        <span style={{ fontWeight:900,fontSize:18,letterSpacing:"-0.5px",color:C.white }}>NeuroAid</span>
+      </div>
+
+      {/* Links */}
+      <div style={{ display:"flex",alignItems:"center",gap:4 }}>
+        {["Guides","Support","About"].map(name=>(
+          <div key={name} style={{ position:"relative" }}>
+            <button
+              onClick={e=>{ e.stopPropagation(); setOpen(open===name?null:name); }}
+              style={{
+                background:"none",border:"none",
+                color:open===name?C.white:C.dim,
+                fontSize:14,cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif",
+                padding:"8px 14px",borderRadius:8,
+                transition:"color 0.2s",
+                display:"flex",alignItems:"center",gap:5,
+              }}
+              onMouseEnter={e=>e.currentTarget.style.color="#fff"}
+              onMouseLeave={e=>{ if(open!==name) e.currentTarget.style.color=C.dim; }}
+            >
+              {name}
+              <span style={{ fontSize:8,opacity:0.55,display:"inline-block",transition:"transform 0.2s",transform:open===name?"rotate(180deg)":"rotate(0deg)" }}>▼</span>
+            </button>
+            {open===name && <Dropdown name={name} />}
+          </div>
+        ))}
+        <button onClick={()=>setView("login")} style={{
+          background:C.lime,border:"none",color:"#080808",
+          fontWeight:700,fontSize:14,padding:"9px 20px",
+          borderRadius:50,cursor:"pointer",marginLeft:8,
+          fontFamily:"'DM Sans',sans-serif",
+          boxShadow:`0 0 20px ${C.lime}44`,transition:"all 0.2s",
+        }}
+          onMouseEnter={e=>{e.currentTarget.style.background="#d4ff40";e.currentTarget.style.boxShadow=`0 0 36px ${C.lime}77`;}}
+          onMouseLeave={e=>{e.currentTarget.style.background=C.lime;e.currentTarget.style.boxShadow=`0 0 20px ${C.lime}44`;}}
+        >Start Free Assessment</button>
+      </div>
+    </nav>,
+    document.body
+  );
+}
+
+/* ── App cards ───────────────────────────────────────────── */
+const APP_CARDS = [
+  { id:"speech",   label:"Speech AI",  bg:"linear-gradient(145deg,#c0392b,#8e1a13)", emoji:"🎙️", tilt:-8,  tx:-14, ty:10  },
+  { id:"memory",   label:"MemoryTest", bg:"linear-gradient(145deg,#2c5fbc,#1a3a8a)", emoji:"🧠", tilt: 4,  tx:  0, ty:-5  },
+  { id:"reaction", label:"ReactionX",  bg:"linear-gradient(145deg,#1e7a5a,#0f5040)", emoji:"⚡", tilt: 10, tx: 14, ty: 8  },
+  { id:"progress", label:"Progress",   bg:"linear-gradient(145deg,#3d8b3d,#245c24)", emoji:"📈", tilt:-6,  tx:-11, ty:-8  },
+  { id:"stroop",   label:"DocPortal",  bg:"linear-gradient(145deg,#6b35c8,#42198a)", emoji:"🩺", tilt: 2,  tx:  0, ty: 5  },
+  { id:"results",  label:"Reports",    bg:"linear-gradient(145deg,#1a7a82,#0f4d52)", emoji:"📋", tilt: 8,  tx: 11, ty:-6  },
+];
+
+/* AppCard uses its own transform — NO perspective on any ancestor needed */
+function AppCard({ card, mx, my, onClick }) {
+  const [hov,setHov]=useState(false);
+  const px   = (mx-0.5)*card.tx*1.3;
+  const py   = (my-0.5)*card.ty*1.3;
+  /* rotateX/Y need perspective but ONLY on this element's own context */
+  const tf = hov
+    ? `scale(1.08) translateY(-6px) rotate(0deg)`
+    : `rotate(${card.tilt}deg) translate(${px}px,${py}px)`;
+  return (
+    <div onClick={onClick} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
+      width:160,height:160,background:card.bg,borderRadius:32,
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,
+      cursor:"pointer",position:"relative",overflow:"hidden",
+      transform:tf,
+      transition:hov
+        ? "transform 0.18s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.2s"
+        : "transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94),box-shadow 0.4s",
+      boxShadow:hov
+        ? "0 32px 72px rgba(0,0,0,0.75),0 0 0 1px rgba(255,255,255,0.15)"
+        : "0 16px 48px rgba(0,0,0,0.60),0 0 0 1px rgba(255,255,255,0.08)",
+      willChange:"transform",
+    }}>
+      <div style={{ position:"absolute",top:0,left:0,right:0,height:"50%",background:"linear-gradient(180deg,rgba(255,255,255,0.18) 0%,transparent 100%)",borderRadius:"32px 32px 0 0",pointerEvents:"none" }} />
+      <div style={{ position:"absolute",bottom:0,left:0,right:0,height:"40%",background:"linear-gradient(0deg,rgba(0,0,0,0.30) 0%,transparent 100%)",pointerEvents:"none" }} />
+      <div style={{ fontSize:42,filter:"drop-shadow(0 4px 12px rgba(0,0,0,0.5))",zIndex:2 }}>{card.emoji}</div>
+      <div style={{ fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:13,color:"rgba(255,255,255,0.92)",letterSpacing:0.3,zIndex:2,textShadow:"0 2px 8px rgba(0,0,0,0.6)" }}>{card.label}</div>
+    </div>
+  );
+}
+
+/* ── Counter ─────────────────────────────────────────────── */
+function Counter({ to, suffix="" }) {
+  const [val,setVal]=useState(0);
+  const ref=useRef(null);
+  const fired=useRef(false);
+  useEffect(()=>{
+    const obs=new IntersectionObserver(([e])=>{
+      if(e.isIntersecting&&!fired.current){
+        fired.current=true;
+        let s=0; const step=Math.ceil(to/40);
+        const t=setInterval(()=>{ s=Math.min(s+step,to); setVal(s); if(s>=to) clearInterval(t); },30);
+      }
+    });
+    if(ref.current) obs.observe(ref.current);
+    return ()=>obs.disconnect();
+  },[to]);
+  return <span ref={ref}>{val}{suffix}</span>;
+}
+
+/* ── FloatBtn ────────────────────────────────────────────── */
+function FloatBtn({ children, lime, onClick }) {
+  const [hov,setHov]=useState(false);
+  return (
+    <button onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onClick={onClick} style={{
+      background:lime?(hov?"#d4ff40":C.lime):(hov?"rgba(255,255,255,0.10)":"rgba(255,255,255,0.06)"),
+      border:lime?"none":"1px solid rgba(255,255,255,0.15)",
+      color:lime?"#080808":C.offWhite,
+      fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:15,
+      padding:"13px 28px",borderRadius:50,cursor:"pointer",
+      boxShadow:lime?`0 0 ${hov?"40px":"22px"} ${C.lime}${hov?"70":"44"}`:"none",
+      transition:"all 0.22s ease",
+      transform:hov?"translateY(-2px)":"none",
+    }}>{children}</button>
+  );
+}
+
+/* ── GlowCard ────────────────────────────────────────────── */
+function GlowCard({ children, style={}, glowAlpha="22" }) {
+  return (
+    <div style={{
+      background:"rgba(10,12,10,0.90)",
+      border:"1px solid rgba(255,255,255,0.09)",
+      borderRadius:24,
+      backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+      boxShadow:`0 24px 80px rgba(0,0,0,0.60),0 0 60px ${C.lime}10,inset 0 1px 0 rgba(255,255,255,0.07)`,
+      overflow:"hidden",position:"relative",
+      ...style,
+    }}>
+      <div style={{ position:"absolute",top:0,left:"8%",right:"8%",height:1,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.09),transparent)",pointerEvents:"none" }} />
+      <div style={{ position:"absolute",bottom:0,right:0,width:"65%",height:"60%",background:`radial-gradient(ellipse 80% 80% at 90% 110%,${C.lime}${glowAlpha} 0%,transparent 70%)`,pointerEvents:"none" }} />
+      {children}
+    </div>
+  );
+}
+
+/* ── Service mini-card ───────────────────────────────────── */
+function SvcCard({ icon, title, desc, accent }) {
+  const [hov,setHov]=useState(false);
+  return (
+    <div onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{
+      background:hov?`${accent}10`:"rgba(14,16,12,0.80)",
+      border:`1px solid ${hov?accent:"rgba(255,255,255,0.08)"}`,
+      borderRadius:16,padding:"20px 22px",
+      backdropFilter:"blur(14px)",
+      transition:"all 0.26s ease",
+      transform:hov?"translateY(-3px)":"none",
+      boxShadow:hov?`0 16px 48px rgba(0,0,0,0.45),0 0 28px ${accent}18`:"0 4px 20px rgba(0,0,0,0.25)",
+      cursor:"pointer",position:"relative",overflow:"hidden",
+    }}>
+      <div style={{ position:"absolute",bottom:0,right:0,width:"55%",height:"50%",background:`radial-gradient(ellipse 80% 80% at 100% 100%,${accent}18 0%,transparent 70%)`,pointerEvents:"none" }} />
+      <div style={{ fontSize:28,marginBottom:10 }}>{icon}</div>
+      <div style={{ fontWeight:900,fontSize:14,color:C.white,marginBottom:5,letterSpacing:"-0.2px" }}>{title}</div>
+      <div style={{ fontSize:12,color:C.dim,lineHeight:1.6 }}>{desc}</div>
+      {hov&&<div style={{ position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${accent},transparent)` }} />}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+   MAIN COMPONENT
+════════════════════════════════════════════════════════ */
+export default function LandingPage({ setView }) {
+  const [mouse,setMouse]           = useState({x:0.5,y:0.5});
+  const [showMore,setShowMore]     = useState(false);
+  const [mounted,setMounted]       = useState(false);
+  const [navOpen,setNavOpen]       = useState(null);
+  const moreRef = useRef(null);
+
+  // Smoothed mouse for parallax
+  const smooth = useRef({x:0.5,y:0.5});
+  const rafId  = useRef(null);
+
+  useEffect(()=>{
+    setTimeout(()=>setMounted(true),80);
+
+    const s=document.createElement("style");
+    s.id="lp-styles";
+    s.innerHTML=`
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,900&display=swap');
+      @keyframes pulse-dot   {0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.6}}
+      @keyframes float-up    {0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+      @keyframes ghost-drift {0%,100%{opacity:.028}50%{opacity:.055}}
+      @keyframes card-in     {from{opacity:0;transform:translateY(40px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+      @keyframes more-in     {from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+      @keyframes dd-in       {from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+      html,body{scroll-behavior:smooth}
+      *{box-sizing:border-box}
+      ::-webkit-scrollbar{width:4px}
+      ::-webkit-scrollbar-track{background:#080808}
+      ::-webkit-scrollbar-thumb{background:rgba(200,241,53,0.28);border-radius:2px}
+    `;
+    if(!document.getElementById("lp-styles")) document.head.appendChild(s);
+
+    // Close nav dropdown on outside click
+    const closeNav=()=>setNavOpen(null);
+    document.addEventListener("click",closeNav);
+
+    return ()=>{
+      const el=document.getElementById("lp-styles"); if(el) el.remove();
+      document.removeEventListener("click",closeNav);
+      if(rafId.current) cancelAnimationFrame(rafId.current);
+    };
+  },[]);
+
+  // Smooth lerp mouse
+  const [smoothMouse,setSmoothMouse]=useState({x:0.5,y:0.5});
+  useEffect(()=>{
+    function loop(){
+      smooth.current.x += (mouse.x - smooth.current.x)*0.07;
+      smooth.current.y += (mouse.y - smooth.current.y)*0.07;
+      setSmoothMouse({x:smooth.current.x, y:smooth.current.y});
+      rafId.current=requestAnimationFrame(loop);
+    }
+    rafId.current=requestAnimationFrame(loop);
+    return ()=>cancelAnimationFrame(rafId.current);
+  },[mouse]);
+
+  const handleMouseMove = e => setMouse({x:e.clientX/window.innerWidth,y:e.clientY/window.innerHeight});
+
+  const handleMore = ()=>{
+    setShowMore(true);
+    setTimeout(()=>moreRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+  };
+  const handleClose = ()=>{
+    setShowMore(false);
+    window.scrollTo({top:0,behavior:"smooth"});
+  };
 
   return (
-    <div style={{ background: T.bg, color: T.cream, fontFamily: "'DM Sans',sans-serif" }}>
+    /*
+      ROOT DIV: absolutely no transform, no perspective, no will-change.
+      This is critical — ANY CSS transform on an ancestor breaks position:fixed.
+      The navbar is rendered via createPortal directly onto document.body,
+      completely bypassing this tree.
+    */
+    <div
+      onMouseMove={handleMouseMove}
+      style={{ background:C.bg,color:C.white,minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",overflowX:"hidden" }}
+    >
+      <GridBg />
 
-      {/* NAV */}
-      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 60px", borderBottom: `1px solid ${T.cardBorder}`, position: "sticky", top: 0, zIndex: 50, background: "rgba(10,10,10,0.88)", backdropFilter: "blur(16px)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: T.red, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${T.redGlow}` }}>⬡</div>
-          <span style={{ fontFamily: "'Instrument Serif',serif", fontSize: 20, letterSpacing: -0.5 }}>NeuroAid</span>
+      {/* Navbar via Portal — always fixed to viewport, nothing can break it */}
+      <NavPortal setView={setView} open={navOpen} setOpen={setNavOpen} />
+
+      {/* ── HERO ── */}
+      <section style={{
+        minHeight:"100vh",display:"flex",flexDirection:"column",
+        alignItems:"center",justifyContent:"center",
+        paddingTop:80,paddingBottom:40,
+        position:"relative",overflow:"hidden",
+      }}>
+        {/* Ghost text */}
+        <div style={{
+          position:"absolute",fontWeight:900,
+          fontSize:"clamp(80px,14vw,200px)",color:"rgba(255,255,255,0.028)",
+          letterSpacing:"-6px",userSelect:"none",pointerEvents:"none",
+          top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+          animation:"ghost-drift 8s ease-in-out infinite",whiteSpace:"nowrap",
+          fontFamily:"'DM Sans',sans-serif",zIndex:0,
+        }}>NEUROAID</div>
+
+        {/* Ambient orbs */}
+        <div style={{ position:"absolute",top:"10%",left:"15%",width:400,height:400,borderRadius:"50%",background:`radial-gradient(circle,${C.lime}07 0%,transparent 70%)`,pointerEvents:"none",animation:"float-up 10s ease-in-out infinite" }} />
+        <div style={{ position:"absolute",bottom:"10%",right:"10%",width:350,height:350,borderRadius:"50%",background:"radial-gradient(circle,rgba(100,80,255,0.06) 0%,transparent 70%)",pointerEvents:"none",animation:"float-up 8s ease-in-out infinite 2s" }} />
+
+        {/* ── HEADLINE ── */}
+        <div style={{
+          opacity:mounted?1:0,transform:mounted?"none":"translateY(20px)",
+          transition:"all 0.8s ease 0.05s",
+          zIndex:2,position:"relative",
+          textAlign:"center",marginBottom:12,
+        }}>
+          {/* Eyebrow pill */}
+          <div style={{
+            display:"inline-flex",alignItems:"center",gap:8,
+            background:"rgba(200,241,53,0.10)",border:`1px solid ${C.lime}33`,
+            borderRadius:99,padding:"6px 16px",marginBottom:20,
+            fontSize:11,fontWeight:700,color:C.lime,letterSpacing:1.5,textTransform:"uppercase",
+          }}>
+            <span style={{ width:5,height:5,borderRadius:"50%",background:C.lime,display:"inline-block",animation:"pulse-dot 2s infinite" }} />
+            Cognitive AI Platform
+          </div>
+          {/* Big hero headline */}
+          <h1 style={{
+            fontFamily:"'DM Sans',sans-serif",fontWeight:900,
+            fontSize:"clamp(32px,4.5vw,66px)",lineHeight:1.05,
+            letterSpacing:"-2.5px",color:C.white,margin:"0 0 14px",
+          }}>
+            Experience cognitive health<br/>
+            like never before<br/>
+            <span style={{ color:C.lime }}>with NeuroAid.</span>
+          </h1>
+          {/* Sub */}
+          <p style={{
+            color:C.dim,fontSize:16,lineHeight:1.65,
+            maxWidth:480,margin:"0 auto 32px",
+          }}>
+            Access all 6 cognitive screening tools, all in one secure place.
+          </p>
+          {/* CTA row */}
+          <div style={{ display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:44 }}>
+            <button onClick={()=>setView("login")} style={{
+              background:C.lime,border:"none",color:"#080808",
+              fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:15,
+              padding:"13px 28px",borderRadius:50,cursor:"pointer",
+              boxShadow:`0 0 24px ${C.lime}55`,transition:"all 0.22s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.background="#d4ff40";e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background=C.lime;e.currentTarget.style.transform="none";}}
+            >Start Free Assessment →</button>
+            <button style={{
+              background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",
+              color:C.offWhite,fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:15,
+              padding:"13px 28px",borderRadius:50,cursor:"pointer",
+              backdropFilter:"blur(12px)",transition:"all 0.22s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.10)";e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.06)";e.currentTarget.style.transform="none";}}
+            >Watch Demo ▶</button>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          {["Guides","Support"].map(l => (
-            <button key={l} style={{ background: "none", border: "none", color: T.creamFaint, fontWeight: 500, cursor: "pointer", fontSize: 14, padding: "8px 14px", borderRadius: 8, fontFamily: "'DM Sans',sans-serif" }}
-              onMouseEnter={e => e.target.style.color = T.cream} onMouseLeave={e => e.target.style.color = T.creamFaint}>{l}</button>
-          ))}
-          <button onClick={() => setView("about")} style={{ background: "none", border: "none", color: T.creamFaint, fontWeight: 700, cursor: "pointer", fontSize: 14, padding: "8px 14px", borderRadius: 8, fontFamily: "'DM Sans',sans-serif" }}
-            onMouseEnter={e => e.target.style.color = T.cream} onMouseLeave={e => e.target.style.color = T.creamFaint}>About</button>
-          <Btn small onClick={() => setView("login")}>Start Free Assessment</Btn>
-        </div>
-      </nav>
 
-      {/* HERO */}
-      <section style={{ position: "relative", minHeight: "92vh", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,64,64,0.15) 0%, transparent 60%), #0a0a0a" }}>
-        <Stars count={70} />
-        <div style={{ position: "absolute", width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(232,64,64,0.28) 0%, transparent 70%)", top: "50%", left: "50%", transform: "translate(-50%,-50%)", animation: "glow-pulse 4s ease-in-out infinite", pointerEvents: "none" }} />
-
-        <FloatCard style={{ position: "absolute", left: "8%", top: "25%", animation: "floatL 7s ease-in-out infinite" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#1a3a1a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🎙️</div>
-            <div><div style={{ fontSize: 10, color: T.creamFaint }}>Speech Rate</div><div style={{ fontSize: 13, fontWeight: 700, color: T.cream }}>142 wpm</div><div style={{ fontSize: 10, color: T.green }}>● Normal</div></div>
-          </div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", left: "6%", top: "46%", animation: "floatL 9s ease-in-out infinite 1s" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#1a1a3a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🧠</div>
-            <div><div style={{ fontSize: 10, color: T.creamFaint }}>Memory Recall</div><div style={{ fontSize: 13, fontWeight: 700, color: T.cream }}>9 / 12 words</div><div style={{ fontSize: 10, color: T.green }}>● 75% accuracy</div></div>
-          </div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", left: "5%", top: "65%", animation: "floatL 8s ease-in-out infinite 0.5s" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#2a1a0a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>⚡</div>
-            <div><div style={{ fontSize: 10, color: T.creamFaint }}>Reaction Time</div><div style={{ fontSize: 13, fontWeight: 700, color: T.cream }}>284 ms avg</div><div style={{ fontSize: 10, color: T.amber }}>● Watch trend</div></div>
-          </div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", right: "7%", top: "22%", animation: "floatR 8s ease-in-out infinite 0.5s", minWidth: 130 }}>
-          <div style={{ fontSize: 10, color: T.creamFaint, marginBottom: 4 }}>Cognitive Score</div>
-          <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 36, color: T.cream, lineHeight: 1 }}>74</div>
-          <div style={{ fontSize: 10, color: T.green, marginTop: 4 }}>● Low Risk</div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", right: "6%", top: "42%", animation: "floatR 6s ease-in-out infinite 2s", minWidth: 150 }}>
-          <div style={{ fontSize: 10, color: T.creamFaint, marginBottom: 6 }}>Assessment Complete ✓</div>
-          <div style={{ background: T.bg3, borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 600, color: T.green, textAlign: "center" }}>View Full Results →</div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", right: "8%", top: "61%", animation: "floatR 7s ease-in-out infinite 1s" }}>
-          <div style={{ fontSize: 10, color: T.creamFaint, marginBottom: 2 }}>Pause Frequency</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.cream }}>0.8 / min</div>
-          <div style={{ fontSize: 10, color: T.green }}>● Normal</div>
-        </FloatCard>
-        <FloatCard style={{ position: "absolute", right: "5%", top: "76%", animation: "floatR 9s ease-in-out infinite 3s" }}>
-          <div style={{ fontSize: 10, color: T.creamFaint, marginBottom: 2 }}>Filler Words</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.cream }}>3 detected</div>
-          <div style={{ fontSize: 10, color: T.amber }}>● Monitor</div>
-        </FloatCard>
-
-        <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
-          <div style={{ width: 220, margin: "0 auto", background: "#1c1c1e", borderRadius: 36, padding: "16px 14px 24px", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 40px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1)", animation: "float 6s ease-in-out infinite" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, padding: "0 4px" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.cream }}>9:41</span>
-              <span style={{ fontSize: 10, color: T.creamFaint }}>◀</span>
+        {/* ── APP CARD GRID ── */}
+        <div style={{
+          display:"grid",gridTemplateColumns:"repeat(3,160px)",gap:18,
+          opacity:mounted?1:0,transition:"opacity 0.5s ease 0.3s",
+          position:"relative",zIndex:2,
+        }}>
+          {APP_CARDS.map((card,i)=>(
+            <div key={card.id} style={{ animation:mounted?`card-in 0.7s cubic-bezier(.34,1.56,.64,1) ${0.2+i*0.08}s both`:"none" }}>
+              <AppCard card={card} mx={smoothMouse.x} my={smoothMouse.y} onClick={()=>setView("login")} />
             </div>
-            <div style={{ background: T.cream, borderRadius: 24, padding: "18px 14px", minHeight: 280 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#111", marginBottom: 14, textAlign: "center" }}>My Score</div>
-              <div style={{ textAlign: "center", marginBottom: 14 }}>
-                <div style={{ fontFamily: "'Instrument Serif',serif", fontSize: 56, color: "#111", lineHeight: 1 }}>74</div>
-                <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>Cognitive Score</div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#e8f8ee", borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, color: "#1a7a3a", marginTop: 6 }}>● Low Risk</div>
-              </div>
-              {[{label:"Speech",v:74,c:"#e84040"},{label:"Memory",v:82,c:"#22c55e"},{label:"Reaction",v:68,c:"#3b82f6"}].map(d => (
-                <div key={d.label} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 10, color: "#666" }}>{d.label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "#111" }}>{d.v}</span>
+          ))}
+        </div>
+
+        {/* More / hint */}
+        <div style={{
+          marginTop:36,position:"relative",zIndex:2,
+          opacity:mounted?1:0,transform:mounted?"none":"translateY(12px)",
+          transition:"all 0.7s ease 0.55s",
+        }}>
+          {!showMore ? (
+            <button onClick={handleMore} style={{
+              background:"rgba(18,20,16,0.88)",
+              border:"1px solid rgba(255,255,255,0.14)",
+              color:C.offWhite,
+              fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,
+              padding:"12px 32px",borderRadius:50,cursor:"pointer",
+              backdropFilter:"blur(20px)",
+              display:"flex",alignItems:"center",gap:10,
+              boxShadow:"0 8px 36px rgba(0,0,0,0.5)",
+              transition:"all 0.22s ease",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=`${C.lime}55`;e.currentTarget.style.color=C.white;e.currentTarget.style.boxShadow=`0 8px 48px rgba(0,0,0,0.6),0 0 28px ${C.lime}14`;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.14)";e.currentTarget.style.color=C.offWhite;e.currentTarget.style.boxShadow="0 8px 36px rgba(0,0,0,0.5)";}}
+            >
+              <span style={{ fontSize:15 }}>↓</span> More
+            </button>
+          ) : (
+            <div style={{ display:"flex",alignItems:"center",gap:8,color:"#444",fontSize:13 }}>
+              <span style={{ width:40,height:1,background:`linear-gradient(90deg,transparent,${C.lime}44)`,display:"inline-block" }} />
+              Scroll down to explore
+              <span style={{ width:40,height:1,background:`linear-gradient(90deg,${C.lime}44,transparent)`,display:"inline-block" }} />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ══ MORE CONTENT ══ */}
+      {showMore && (
+        <div ref={moreRef} style={{ animation:"more-in 0.55s cubic-bezier(.34,1.2,.64,1) both" }}>
+
+          {/* ── STATS BAR ── */}
+          <section style={{ borderTop:`1px solid rgba(255,255,255,0.07)`,borderBottom:`1px solid rgba(255,255,255,0.07)`,padding:"52px 60px",position:"relative" }}>
+            <div style={{ position:"absolute",top:0,left:"15%",right:"15%",height:1,background:`linear-gradient(90deg,transparent,${C.lime}44,transparent)` }} />
+            <div style={{ maxWidth:1000,margin:"0 auto",display:"flex",justifyContent:"space-around",gap:24,flexWrap:"wrap" }}>
+              {[
+                {val:500,suffix:"+",label:"Patients Screened"},
+                {val:98, suffix:"%",label:"Accuracy Rate"},
+                {val:8,  suffix:" min",label:"Avg Assessment Time"},
+                {val:6,  suffix:"",label:"Cognitive Tests"},
+              ].map(s=>(
+                <div key={s.label} style={{ textAlign:"center" }}>
+                  <div style={{ fontWeight:900,fontSize:52,color:C.lime,lineHeight:1,letterSpacing:"-2px" }}>
+                    <Counter to={s.val} suffix={s.suffix} />
                   </div>
-                  <div style={{ height: 3, background: "#e0e0e0", borderRadius: 2 }}><div style={{ height: "100%", width: `${d.v}%`, background: d.c, borderRadius: 2 }} /></div>
-                </div>
-              ))}
-              <div style={{ marginTop: 14, background: "#e84040", borderRadius: 12, padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 700, color: "white", cursor: "pointer" }}>Start Assessment →</div>
-            </div>
-          </div>
-          <div style={{ marginTop: 60, maxWidth: 620, padding: "0 24px" }}>
-            <h1 style={{ fontFamily: "'Instrument Serif',serif", fontSize: "clamp(38px,5vw,62px)", fontWeight: 400, lineHeight: 1.08, letterSpacing: -2, color: T.cream }}>
-              Reimagine How You<br />Interact With <span style={{ fontStyle: "italic" }}>Your Brain</span>
-            </h1>
-          </div>
-        </div>
-      </section>
-
-      {/* FEATURES */}
-      <section style={{ background: "#0f0f0f", padding: "80px 60px", borderRadius: "24px 24px 0 0" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <div style={{ display: "flex", gap: 60, alignItems: "flex-start" }}>
-            <div style={{ flex: 1 }}>
-              <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: 36, fontWeight: 400, letterSpacing: -1.2, lineHeight: 1.15, color: T.cream, marginBottom: 16 }}>Your ultimate cognitive health platform, packed with features to simplify your brain health journey</h2>
-            </div>
-            <div style={{ flex: 1, paddingTop: 6 }}>
-              <p style={{ color: T.creamDim, fontSize: 15, lineHeight: 1.75, marginBottom: 20 }}>From advanced speech biomarkers to seamless memory tests, we've designed everything to elevate your cognitive screening experience.</p>
-              <Btn variant="cream" onClick={() => setView("login")}>↓ Get started</Btn>
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 48 }}>
-            <DarkCard style={{ padding: 32, gridRow: "span 2" }}>
-              <div style={{ background: T.bg3, borderRadius: 16, padding: 16, marginBottom: 20, border: `1px solid ${T.cardBorder}` }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: T.red, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>⬡</div>
-                  <div><div style={{ fontSize: 12, color: T.creamDim, marginBottom: 2 }}>Your weekly assessment is ready 🧠</div><div style={{ fontSize: 11, color: T.creamFaint }}>Tap to begin — takes ~8 minutes</div></div>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", background: T.bg, borderRadius: 10, padding: "8px 12px" }}>
-                  <div style={{ width: 20, height: 20, borderRadius: 4, background: T.bg2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>📊</div>
-                  <div style={{ fontSize: 11, color: T.creamDim }}>Score improved · <span style={{ color: T.green }}>+4 pts this week</span></div>
-                </div>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: T.cream, marginBottom: 10 }}>Push Notifications</div>
-              <div style={{ color: T.creamFaint, fontSize: 14, lineHeight: 1.7 }}>Stay on top of your cognitive health with instant alerts for all assessments and score changes.</div>
-            </DarkCard>
-            <DarkCard style={{ padding: 28 }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-                <div style={{ width: 80, height: 80, borderRadius: "50%", background: "radial-gradient(circle at 35% 35%, #ffd700, #b8860b)", boxShadow: "0 0 40px rgba(255,215,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#8b6000" }}>⬡</div>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: T.cream, marginBottom: 6 }}>Effortless Assessments</div>
-              <div style={{ color: T.creamFaint, fontSize: 14, lineHeight: 1.7 }}>Complete cognitive screenings with a user-friendly, guided interface.</div>
-            </DarkCard>
-            <DarkCard style={{ padding: 28 }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: T.cream, marginBottom: 10 }}>Longitudinal Tracking</div>
-              <div style={{ color: T.creamFaint, fontSize: 14, lineHeight: 1.7, marginBottom: 16 }}>Score trends over months reveal trajectories invisible to single-point assessments.</div>
-              <MiniChart data={[58,61,64,60,67,70,74]} color={T.red} height={50} />
-            </DarkCard>
-          </div>
-        </div>
-      </section>
-
-      {/* ECOSYSTEM */}
-      <section style={{ background: "#0f0f0f", padding: "80px 60px", textAlign: "center" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: 38, fontWeight: 400, letterSpacing: -1.2, color: T.cream, marginBottom: 10 }}>Explore, create, and assess<br /><em style={{ color: T.creamDim }}>seamlessly in the cognitive ecosystem.</em></h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginTop: 48, marginBottom: 48 }}>
-            {[
-              { bg: "linear-gradient(135deg,#2a0a0a,#6b1a1a)", imgs: ["🎙️","🧠"], label: "Assess Speech & Memory with AI-powered biomarkers" },
-              { bg: "linear-gradient(135deg,#0a1a2a,#1a3a6b)", imgs: ["⚡","📊","🩺"], label: "Track, analyze, and share longitudinal results" },
-              { bg: "linear-gradient(135deg,#1a0a2a,#6b1a6b)", imgs: ["⬡"], label: "Doctor-verified reports and clinical interpretation", star: true },
-            ].map((c, i) => (
-              <DarkCard key={i} style={{ padding: 20, textAlign: "left" }}>
-                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                  {c.imgs.map((img, j) => <div key={j} style={{ width: 48, height: 48, borderRadius: 12, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{img}</div>)}
-                  {c.star && <div style={{ width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg,#2a1a0a,#8b4513)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✦</div>}
-                </div>
-                <div style={{ fontSize: 13, color: T.creamDim, lineHeight: 1.6 }}>{c.label}</div>
-              </DarkCard>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 60, alignItems: "center", textAlign: "left", marginTop: 40 }}>
-            <div style={{ flex: 1 }}>
-              <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: 36, fontWeight: 400, letterSpacing: -1.2, lineHeight: 1.2, color: T.cream, marginBottom: 16 }}>Privacy that lets you<br /><em>sleep easy</em></h2>
-              <p style={{ color: T.creamDim, fontSize: 14, lineHeight: 1.75 }}>Your cognitive data is encrypted end-to-end and never sold. Only you and your authorized doctors can access your results.</p>
-            </div>
-            <DarkCard style={{ flex: 1, padding: 24 }} hover={false}>
-              <div style={{ fontSize: 12, color: T.creamFaint, marginBottom: 8 }}>Message</div>
-              <div style={{ background: T.bg3, borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 13, color: T.creamDim, fontStyle: "italic" }}>"I love NeuroAid"</div>
-              <div style={{ fontSize: 12, color: T.creamFaint, marginBottom: 8 }}>From</div>
-              <div style={{ background: T.bg3, borderRadius: 10, padding: 12, fontSize: 13, color: T.cream }}>Dr. Elena Marsh<span style={{ color: T.green, fontSize: 11 }}> · Verified</span></div>
-            </DarkCard>
-          </div>
-        </div>
-      </section>
-
-      {/* GATEWAY */}
-      <section style={{ background: "#0e0a18", padding: "80px 60px", textAlign: "center", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", bottom: -100, left: "50%", transform: "translateX(-50%)", width: 600, height: 400, background: "radial-gradient(ellipse 60% 80% at 50% 100%, rgba(232,130,40,0.18) 0%, rgba(140,60,20,0.08) 40%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ maxWidth: 1000, margin: "0 auto", position: "relative", zIndex: 2 }}>
-          <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: 38, fontWeight: 400, letterSpacing: -1.2, color: T.cream, marginBottom: 10 }}>Your comprehensive gateway<br />to cognitive health tools</h2>
-          <p style={{ color: T.creamFaint, fontSize: 14, marginBottom: 56 }}>Access all 6 cognitive screening tools, all in one secure place.</p>
-          {[[
-            { label: "Speech AI",  bg: "linear-gradient(135deg,#7b2020,#e84040)", icon: "🎙️", rot: "-8deg" },
-            { label: "MemoryTest", bg: "linear-gradient(135deg,#1a3a8b,#4060d0)", icon: "🧠", rot: "0deg"  },
-            { label: "ReactionX",  bg: "linear-gradient(135deg,#1a6040,#28c070)", icon: "⚡", rot: "8deg"  },
-          ],[
-            { label: "Progress",   bg: "linear-gradient(135deg,#2a6020,#50b030)", icon: "📈", rot: "-6deg" },
-            { label: "DocPortal", bg: "linear-gradient(135deg,#5a2080,#9040d0)", icon: "🩺", rot: "0deg"  },
-            { label: "Reports",   bg: "linear-gradient(135deg,#1a4050,#2090b0)", icon: "📄", rot: "6deg"  },
-          ]].map((row, ri) => (
-            <div key={ri} style={{ display: "flex", gap: 24, justifyContent: "center", marginBottom: 32 }}>
-              {row.map(t => (
-                <div key={t.label} onClick={() => setView("login")}
-                  style={{ width: 140, height: 160, borderRadius: 24, background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, cursor: "pointer", transform: `rotate(${t.rot})`, boxShadow: "0 16px 50px rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.12)", transition: "transform 0.25s" }}
-                  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.06) rotate(0deg)"}
-                  onMouseLeave={e => e.currentTarget.style.transform = `rotate(${t.rot})`}>
-                  <div style={{ fontSize: 40 }}>{t.icon}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)", letterSpacing: 0.5 }}>{t.label}</div>
+                  <div style={{ fontSize:12,color:C.dim,marginTop:8,fontWeight:600,letterSpacing:"0.8px",textTransform:"uppercase" }}>{s.label}</div>
                 </div>
               ))}
             </div>
-          ))}
-          <Btn variant="ghost" style={{ borderRadius: 12 }}>↓ More</Btn>
-        </div>
-      </section>
+          </section>
 
-      {/* CTA */}
-      <section style={{ position: "relative", background: T.bg, padding: "120px 60px", textAlign: "center", overflow: "hidden" }}>
-        <Stars count={90} />
-        <div style={{ position: "absolute", bottom: -60, left: "50%", transform: "translateX(-50%)", width: 700, height: 350, background: "radial-gradient(ellipse 70% 100% at 50% 100%, rgba(180,100,20,0.22) 0%, rgba(120,60,10,0.1) 40%, transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "relative", zIndex: 2 }}>
-          <h2 style={{ fontFamily: "'Instrument Serif',serif", fontSize: "clamp(28px,4vw,50px)", fontWeight: 400, letterSpacing: -1.5, color: T.cream, lineHeight: 1.2, marginBottom: 20 }}>Experience cognitive health like never<br />before with NeuroAid</h2>
-          <Btn onClick={() => setView("login")} style={{ fontSize: 16, padding: "14px 32px", marginBottom: 24 }}>⬡ Start Free Assessment</Btn>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 }}>
-            {["🌐","📱","💻"].map((e, i) => <div key={i} style={{ width: 30, height: 30, borderRadius: "50%", background: T.bg2, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{e}</div>)}
-          </div>
-          <div style={{ color: T.creamFaint, fontSize: 12 }}>Available on web, iOS & Android</div>
-        </div>
-      </section>
+          {/* ── HERO TEXT + FLOATING STAT CARDS ── */}
+          <section style={{ padding:"80px 60px" }}>
+            <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",gap:60,alignItems:"center",flexWrap:"wrap" }}>
+              <div style={{ flex:1,minWidth:280 }}>
+                <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:`rgba(200,241,53,0.10)`,border:`1px solid ${C.lime}33`,borderRadius:99,padding:"5px 14px",marginBottom:20,fontSize:11,fontWeight:700,color:C.lime,letterSpacing:1.5,textTransform:"uppercase" }}>
+                  <span style={{ width:5,height:5,borderRadius:"50%",background:C.lime,display:"inline-block",animation:"pulse-dot 2s infinite" }} />
+                  Cognitive AI Platform
+                </div>
+                <h2 style={{ fontFamily:"'DM Sans',sans-serif",fontWeight:900,fontSize:"clamp(36px,5vw,68px)",lineHeight:1.06,letterSpacing:"-2.5px",color:C.white,margin:"0 0 20px" }}>
+                  We help you<br/>
+                  <span style={{ color:C.lime }}>understand</span> &<br/>
+                  protect your brain.
+                </h2>
+                <p style={{ color:C.dim,fontSize:16,lineHeight:1.7,maxWidth:460,marginBottom:32 }}>
+                  AI-powered cognitive screening for speech, memory, and reaction — all in one platform.
+                </p>
+                <div style={{ display:"flex",gap:12,flexWrap:"wrap" }}>
+                  <FloatBtn lime onClick={()=>setView("login")}>Start Free Assessment →</FloatBtn>
+                  <FloatBtn>Watch Demo ▶</FloatBtn>
+                </div>
+              </div>
+              {/* Floating stat cards */}
+              <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+                {[
+                  {label:"Cognitive Score",val:"74",    sub:"Low Risk",color:C.lime,   anim:"float-up 6s ease-in-out infinite"},
+                  {label:"Speech Rate",   val:"142 wpm",sub:"Normal",  color:"#60a5fa",anim:"float-up 8s ease-in-out infinite 1s"},
+                  {label:"Reaction Time", val:"284ms",  sub:"On trend",color:"#f59e0b",anim:"float-up 7s ease-in-out infinite 0.5s"},
+                ].map(s=>(
+                  <div key={s.label} style={{
+                    background:"rgba(12,14,10,0.92)",border:"1px solid rgba(255,255,255,0.10)",
+                    borderRadius:16,padding:"14px 18px",
+                    backdropFilter:"blur(24px)",
+                    boxShadow:"0 20px 60px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.08)",
+                    animation:s.anim,minWidth:175,position:"relative",overflow:"hidden",
+                  }}>
+                    <div style={{ position:"absolute",top:0,left:"10%",right:"10%",height:1,background:`linear-gradient(90deg,transparent,${s.color}44,transparent)` }} />
+                    <div style={{ position:"absolute",bottom:0,right:0,width:"50%",height:"50%",background:`radial-gradient(ellipse 80% 80% at 100% 100%,${s.color}18 0%,transparent 70%)`,pointerEvents:"none" }} />
+                    <div style={{ fontSize:10,color:C.dim,marginBottom:4,fontWeight:600,letterSpacing:1,textTransform:"uppercase" }}>{s.label}</div>
+                    <div style={{ fontWeight:900,fontSize:22,color:C.white,letterSpacing:"-0.5px" }}>{s.val}</div>
+                    <div style={{ fontSize:10,color:s.color,marginTop:3,display:"flex",alignItems:"center",gap:4 }}>
+                      <span style={{ width:5,height:5,borderRadius:"50%",background:s.color,display:"inline-block",animation:"pulse-dot 2s infinite" }} />
+                      {s.sub}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
-      {/* FOOTER */}
-      <footer style={{ background: T.bg, borderTop: `1px solid ${T.cardBorder}`, padding: "40px 60px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 40 }}>
-        <div>
-          {["Home","Guides","Support","About"].map(l => (
-            <button key={l} onClick={() => l === "About" && setView("about")} style={{ display: "block", background: "none", border: "none", color: T.creamFaint, fontSize: 13, cursor: "pointer", marginBottom: 8, fontFamily: "'DM Sans',sans-serif", textAlign: "left" }}>{l}</button>
-          ))}
+          {/* ═══ CARD 1 — EXPERIENCE COGNITIVE HEALTH / CTA ════ */}
+          <section style={{ padding:"0 60px 48px" }}>
+            <div style={{ maxWidth:1100,margin:"0 auto" }}>
+              <GlowCard style={{ padding:"64px 56px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:48,flexWrap:"wrap" }} glowAlpha="30">
+                <div style={{ position:"relative",zIndex:2,maxWidth:520 }}>
+                  <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:`rgba(200,241,53,0.10)`,border:`1px solid ${C.lime}33`,borderRadius:99,padding:"5px 14px",marginBottom:20,fontSize:11,fontWeight:700,color:C.lime,letterSpacing:1.5,textTransform:"uppercase" }}>
+                    <span style={{ width:5,height:5,borderRadius:"50%",background:C.lime,display:"inline-block",animation:"pulse-dot 2s infinite" }} />
+                    Why NeuroAid
+                  </div>
+                  <h2 style={{ fontFamily:"'DM Sans',sans-serif",fontWeight:900,fontSize:"clamp(26px,3.2vw,50px)",letterSpacing:"-1.5px",lineHeight:1.08,color:C.white,marginBottom:16 }}>
+                    Experience cognitive health<br/>
+                    like never before<br/>
+                    <span style={{ color:C.lime }}>with NeuroAid.</span>
+                  </h2>
+                  <p style={{ color:C.dim,fontSize:15,lineHeight:1.75,maxWidth:420 }}>
+                    AI-powered screening that's fast, accurate, and doctor-verified — all from your browser. No appointments, no waiting rooms.
+                  </p>
+                  {/* Feature pills */}
+                  <div style={{ display:"flex",gap:10,marginTop:24,flexWrap:"wrap" }}>
+                    {["✓ 98% Accurate","✓ 8 min avg","✓ Doctor Verified","✓ HIPAA Safe"].map(f=>(
+                      <div key={f} style={{ background:"rgba(200,241,53,0.08)",border:`1px solid ${C.lime}22`,borderRadius:99,padding:"5px 14px",fontSize:12,fontWeight:600,color:C.lime }}>{f}</div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display:"flex",flexDirection:"column",gap:14,alignItems:"flex-start",position:"relative",zIndex:2 }}>
+                  <FloatBtn lime onClick={()=>setView("login")}>⬡ Start Free Assessment</FloatBtn>
+                  <FloatBtn>Learn More →</FloatBtn>
+                  <div style={{ display:"flex",gap:10,marginTop:6 }}>
+                    {["🌐","📱","💻"].map(e=>(
+                      <div key={e} style={{ width:38,height:38,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.10)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>{e}</div>
+                    ))}
+                  </div>
+                  <div style={{ color:C.dim,fontSize:12 }}>Available on web, iOS & Android</div>
+                </div>
+              </GlowCard>
+            </div>
+          </section>
+
+          {/* ═══ CARD 2 — 6 COGNITIVE TESTS ════════════════════ */}
+          <section style={{ padding:"0 60px 60px" }}>
+            <div style={{ maxWidth:1100,margin:"0 auto" }}>
+              <GlowCard style={{ padding:"48px 52px" }}>
+                <div style={{ position:"relative",zIndex:2 }}>
+                  <div style={{ display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:36,flexWrap:"wrap",gap:16 }}>
+                    <div>
+                      <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:`rgba(200,241,53,0.10)`,border:`1px solid ${C.lime}33`,borderRadius:99,padding:"5px 14px",marginBottom:14,fontSize:11,fontWeight:700,color:C.lime,letterSpacing:1.5,textTransform:"uppercase" }}>
+                        Our Services
+                      </div>
+                      <h2 style={{ fontFamily:"'DM Sans',sans-serif",fontWeight:900,fontSize:"clamp(24px,2.8vw,42px)",letterSpacing:"-1.5px",color:C.white,lineHeight:1.1,margin:0 }}>
+                        6 cognitive tests.<br/>
+                        <span style={{ color:C.dim,fontWeight:400,fontSize:"0.75em" }}>One complete picture.</span>
+                      </h2>
+                    </div>
+                    <FloatBtn lime onClick={()=>setView("login")}>Start Assessment →</FloatBtn>
+                  </div>
+                  <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14 }}>
+                    {[
+                      { icon:"🎙️",title:"Speech Analysis",  desc:"WPM, pauses & rhythm — vocal biomarkers of cognitive decline.",  accent:C.lime    },
+                      { icon:"🧠",title:"Memory Test",       desc:"Recall + delayed recall. Latency, order & intrusion errors.",     accent:"#60a5fa" },
+                      { icon:"⚡",title:"Reaction Time",     desc:"Attention via response drift, misses & speed across 30 targets.", accent:"#f59e0b" },
+                      { icon:"🎨",title:"Stroop Test",       desc:"Color-word interference — gold-standard executive function.",     accent:"#a78bfa" },
+                      { icon:"🥁",title:"Motor Tap",         desc:"10-second tapping measures rhythmic motor control.",               accent:"#fb923c" },
+                      { icon:"📊",title:"Risk Dashboard",    desc:"Unified Alzheimer's, Dementia & Parkinson's risk scores.",        accent:"#4ade80" },
+                    ].map(s=><SvcCard key={s.title} {...s} />)}
+                  </div>
+                </div>
+              </GlowCard>
+            </div>
+          </section>
+
+          {/* ── FOOTER ── */}
+          <footer style={{
+            borderTop:`1px solid rgba(255,255,255,0.07)`,
+            padding:"36px 60px",
+            display:"flex",justifyContent:"space-between",alignItems:"center",gap:20,flexWrap:"wrap",
+          }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <div style={{ width:32,height:32,borderRadius:9,background:`linear-gradient(135deg,${C.lime},${C.limeDim})`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14,color:"#080808" }}>N</div>
+              <span style={{ fontWeight:900,fontSize:17,letterSpacing:"-0.5px" }}>NeuroAid</span>
+            </div>
+
+            <button onClick={handleClose} style={{
+              background:"rgba(255,255,255,0.05)",
+              border:"1px solid rgba(255,255,255,0.14)",
+              color:C.offWhite,fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,
+              padding:"10px 24px",borderRadius:50,cursor:"pointer",
+              display:"flex",alignItems:"center",gap:8,
+              backdropFilter:"blur(12px)",transition:"all 0.22s",
+            }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=`${C.lime}55`;e.currentTarget.style.color=C.white;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.14)";e.currentTarget.style.color=C.offWhite;}}
+            >↑ Close</button>
+
+            <div style={{ display:"flex",alignItems:"center",gap:20 }}>
+              <div style={{ display:"flex",gap:4 }}>
+                {["Privacy","Terms","Contact"].map(l=>(
+                  <button key={l} style={{ background:"none",border:"none",color:C.dim,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",padding:"4px 10px",transition:"color 0.2s" }}
+                    onMouseEnter={e=>e.target.style.color=C.lime}
+                    onMouseLeave={e=>e.target.style.color=C.dim}
+                  >{l}</button>
+                ))}
+              </div>
+              <button onClick={()=>setView("login")} style={{
+                background:C.lime,border:"none",color:"#0a0a0a",
+                fontWeight:700,fontSize:14,padding:"10px 22px",
+                borderRadius:40,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",
+                display:"flex",alignItems:"center",gap:8,
+                boxShadow:`0 0 24px ${C.lime}55`,transition:"all 0.22s",
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.background="#d4ff40";e.currentTarget.style.boxShadow=`0 0 40px ${C.lime}88`;}}
+                onMouseLeave={e=>{e.currentTarget.style.background=C.lime;e.currentTarget.style.boxShadow=`0 0 24px ${C.lime}55`;}}
+              >
+                Let's Connect
+                <span style={{ width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,0.20)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12 }}>›</span>
+              </button>
+            </div>
+          </footer>
+
         </div>
-        <div>
-          <div style={{ color: T.creamDim, fontSize: 13, marginBottom: 12 }}>Stay in touch</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input placeholder="name@email.com" style={{ background: T.bg2, border: `1px solid ${T.cardBorder}`, borderRadius: 8, padding: "10px 14px", color: T.cream, fontSize: 13, outline: "none", fontFamily: "'DM Sans',sans-serif", width: 200 }} />
-            <Btn small>↗ Subscribe</Btn>
-          </div>
-        </div>
-        <div style={{ color: T.creamFaint, fontSize: 11, lineHeight: 1.7, maxWidth: 300 }}>
-          <strong style={{ color: T.creamDim }}>Medical Disclaimer:</strong> NeuroAid is a screening tool, not a diagnostic device. Always consult a qualified neurologist.
-        </div>
-      </footer>
+      )}
     </div>
   );
 }
